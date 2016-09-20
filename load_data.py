@@ -4,6 +4,7 @@ import numpy
 import util
 
 word_embedding_size = util.word_embedding_size
+num_classes = 10
 
 # get e1,e2 position
 def  Parse_Sentence(sentence):
@@ -107,20 +108,24 @@ def get_Max_length(texts):
 
 MAX_DOCUMENT_LENGTH = get_Max_length(SemEval_train_data())
 
-# change class number  to (num_class,) vector
 
+# change class number  to (num_class,) vector
+def getLabelVector(number,num_class):
+    vec = numpy.zeros(num_class)
+    vec[number] = 1.0
+    return vec
 
 # parse SemEval train data
 def load_train_data():
     semeval_data = SemEval_train_data()
     Train_Size = len(semeval_data)
     train_data = numpy.ndarray(shape=(Train_Size,MAX_DOCUMENT_LENGTH,word_embedding_size),dtype=numpy.float32)
-    train_label = numpy.ndarray(shape=(Train_Size,),dtype=numpy.int64)
+    train_label = numpy.ndarray(shape=(Train_Size,num_classes),dtype=numpy.float32)
     i = 0
     for one in semeval_data:
         sentence = one[0]
         train_data[i]=util.getSentence_matrix(sentence,MAX_DOCUMENT_LENGTH)
-        train_label[i]=one[3]
+        train_label[i]=getLabelVector(one[3],num_class=num_classes)
         i+=1
 
     return train_data,train_label
@@ -130,12 +135,12 @@ def load_test_data():
     semeval_data = SemEval_test_data()
     Train_Size = len(semeval_data)
     train_data = numpy.ndarray(shape=(Train_Size,MAX_DOCUMENT_LENGTH,word_embedding_size),dtype=numpy.float32)
-    train_label = numpy.ndarray(shape=(Train_Size,),dtype=numpy.int64)
+    train_label = numpy.ndarray(shape=(Train_Size,num_classes),dtype=numpy.float32)
     i = 0
     for one in semeval_data:
         sentence = one[0]
         train_data[i]=util.getSentence_matrix(sentence,MAX_DOCUMENT_LENGTH)
-        train_label[i]=one[3]
+        train_label[i]=getLabelVector(one[3],num_class=num_classes)
         i+=1
 
     return train_data,train_label

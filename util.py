@@ -8,7 +8,7 @@ import numpy as np
 # text8.bin - 100
 # wikiparta[a,b]vec.bin - 100
 # model = word2vec.load('data/GoogleNews-vectors-negative300.bin')
-model = Word2Vec.load_word2vec_format('data/wikienpartabvec.bin',binary=True)
+model = Word2Vec.load_word2vec_format('wordvec/wikienpartabvec.bin',binary=True)
 
 word_embedding_size = 100
 

@@ -14,8 +14,8 @@ SEED = 66478
 BATCH_SIZE = 64
 VALIDATION_SIZE = 800
 CONVOLUTION_KERNEL_NUMBER = 100
-EVAL_BATCH_SIZE = 64
-NUM_EPOCHS = 10
+EVAL_BATCH_SIZE = 128
+NUM_EPOCHS = 200
 EVAL_FREQUENCY = 100
 MAX_SENTENCE_LENGTH = 85
 
@@ -48,6 +48,8 @@ def main(argv=None):
     train_size = train_data.shape[0]
     num_epochs = NUM_EPOCHS
 
+    filter_sizes = [3,4,5]
+
     # input
     # input is sentence
     train_data_node = tf.placeholder(tf.float32,shape=(BATCH_SIZE,MAX_SENTENCE_LENGTH,EMBEDDING_SIZE,NUM_CHANNELS))
@@ -56,34 +58,43 @@ def main(argv=None):
 
     eval_data = tf.placeholder(tf.float32,shape=(EVAL_BATCH_SIZE,MAX_SENTENCE_LENGTH,EMBEDDING_SIZE, NUM_CHANNELS))
 
-    # weights
-    # one convolutional layer,have ${CONVOLUTION_KERNEL_NUMBER} kernels,and width is [5,6,7]
-    conv_weights = tf.Variable(
-        tf.truncated_normal([5, EMBEDDING_SIZE, NUM_CHANNELS, CONVOLUTION_KERNEL_NUMBER],
-                          stddev=0.1,
-                          seed=SEED, dtype=tf.float32))
-    conv_biases = tf.Variable(tf.zeros([CONVOLUTION_KERNEL_NUMBER], dtype=tf.float32))
-
     # full connected - softmax layer,
     fc1_weights = tf.Variable(
-      tf.truncated_normal([100,10],
+      tf.truncated_normal([CONVOLUTION_KERNEL_NUMBER * len(filter_sizes),NUM_CLASSES],
                           stddev=0.1,
                           seed=SEED,
                           dtype=tf.float32))
 
-    fc1_biases = tf.Variable(tf.constant(0.1, shape=[10], dtype=tf.float32))
+    fc1_biases = tf.Variable(tf.constant(0.1, shape=[NUM_CLASSES], dtype=tf.float32))
 
     # model
     def model(data,train=False):
-        # convolution
-        conv = tf.nn.conv2d(data,conv_weights,strides=[1, 1, 1, 1],padding='VALID')
-        # bias and sigmoid
-        tanh=tf.tanh(tf.nn.bias_add(conv, conv_biases))
-        # 1-max pooling
-        pool = tf.nn.max_pool(tanh,ksize=[1,MAX_SENTENCE_LENGTH-5+1,1,1],strides=[1, 1, 1, 1],padding='VALID')
-        #reshape
-        pool_shape = pool.get_shape().as_list()
-        reshape = tf.reshape(pool,[pool_shape[0], pool_shape[1] * pool_shape[2] * pool_shape[3]])
+        pooled_outputs = []
+        for i, filter_size in enumerate(filter_sizes):
+            # weights
+            # one convolutional layer,have ${CONVOLUTION_KERNEL_NUMBER} kernels,and width is [3,4,5]
+            conv_weights = tf.Variable(
+                                tf.truncated_normal([filter_size, EMBEDDING_SIZE, NUM_CHANNELS, CONVOLUTION_KERNEL_NUMBER],
+                                stddev=0.1,
+                                seed=SEED, dtype=tf.float32))
+            conv_biases = tf.Variable(tf.zeros([CONVOLUTION_KERNEL_NUMBER], dtype=tf.float32))
+            # convolution
+            conv = tf.nn.conv2d(data,conv_weights,strides=[1, 1, 1, 1],padding='VALID')
+            # bias and sigmoid
+            tanh=tf.tanh(tf.nn.bias_add(conv, conv_biases))
+            # 1-max pooling,leave a tensor of shape[batch_size,1,1,num_filters]
+            pool = tf.nn.max_pool(tanh,ksize=[1,MAX_SENTENCE_LENGTH-filter_size+1,1,1],strides=[1, 1, 1, 1],padding='VALID')
+            #reshape
+            # pool_shape = pool.get_shape().as_list()
+            # reshape = tf.reshape(pool,[pool_shape[0], pool_shape[1] * pool_shape[2] * pool_shape[3]])
+            pooled_outputs.append(pool)
+
+        # combine all the pooled features
+        num_filters_total = CONVOLUTION_KERNEL_NUMBER * len(filter_sizes)
+        h_pool = tf.concat(3, pooled_outputs)
+        h_pool_flat = tf.reshape(h_pool, [-1, num_filters_total])
+        # add dropout
+        reshape = tf.nn.dropout(h_pool_flat,0.5,seed=SEED)
         # fc1 layer
         hidden = tf.tanh(tf.matmul(reshape, fc1_weights) + fc1_biases)
         return hidden
