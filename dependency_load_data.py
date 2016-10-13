@@ -2,23 +2,43 @@ __author__ = 'PC-LiNing'
 
 import numpy
 import util
+import spacy_parser
 
 word_embedding_size = util.word_embedding_size
 num_classes = 10
 
+def preprocess_sent(sentence):
+    # ' 's 't
+    strip_list = ['\n','\"','.']
+    replace_list = [',',';','\'']
+    delete_list = ['-','\"',':','%','(',')','.','\'t','!']
+    for strip in strip_list:
+        sentence = sentence.strip(strip)
+    for replace in replace_list:
+        sentence = sentence.replace(replace,' '+replace)
+    for delete in delete_list:
+        sentence = sentence.replace(delete,' ')
+
+    return ' '.join(sentence.split())
+
 # get e1,e2 position
 def  Parse_Sentence(sentence):
-    words=sentence.split()
-    e1=0
-    e2=0
+    words=preprocess_sent(sentence).split()
+    e1=-1
+    e2=-1
     for word in words:
         if word.startswith('<e1>'):
             e1=words.index(word)
         if word.startswith('<e2>'):
             e2=words.index(word)
-
-    sent=sentence.replace('<e1>','').replace('</e1>','').replace('<e2>','').replace('</e2>','').strip('\n').strip('.').strip('\"')
-    return  sent,e1,e2
+    sent=preprocess_sent(sentence).replace('<e1>','').replace('</e1>','').replace('<e2>','').replace('</e2>','')
+    # dependency path
+    path =sentence.replace('<e1>','').replace('</e1>','').replace('<e2>','').replace('</e2>','').strip('\n').strip('.').strip('\"')
+    try:
+        path = spacy_parser.parse_sent(sent,e1,e2)
+    except Exception as e:
+        pass
+    return  path,e1,e2
 
 # relation label to number
 # 1 Cause-Effect
@@ -105,11 +125,8 @@ def  SemEval_test_data():
 def get_Max_length(texts):
     return max([len(x[0].split(" ")) for x in texts])
 
-def get_Min_length(texts):
-    return min([len(x[0].split(" ")) for x in texts])
 
-MAX_DOCUMENT_LENGTH = get_Max_length(SemEval_train_data())
-
+MAX_DOCUMENT_LENGTH = max(get_Max_length(SemEval_train_data()),get_Max_length(SemEval_test_data()))
 
 # change class number  to (num_class,) vector
 def getLabelVector(number,num_class):
@@ -146,4 +163,3 @@ def load_test_data():
         i+=1
 
     return train_data,train_label
-

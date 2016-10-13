@@ -6,14 +6,14 @@ import time
 import sys
 from six.moves import xrange
 import datetime
-import load_data
+import dependency_load_data
 import data_helpers
 
 NUM_CLASSES = 10
 EMBEDDING_SIZE = 100
 NUM_CHANNELS = 1
 SEED = 66478
-BATCH_SIZE = 128
+BATCH_SIZE = 64
 CONVOLUTION_KERNEL_NUMBER = 100
 NUM_EPOCHS = 200
 EVAL_FREQUENCY = 100
@@ -31,8 +31,8 @@ def main(argv=None):
 
     # load data
     print("Loading data ... ")
-    x_train,y_train = load_data.load_train_data()
-    x_test,y_test = load_data.load_test_data()
+    x_train,y_train = dependency_load_data.load_train_data()
+    x_test,y_test = dependency_load_data.load_test_data()
 
     # concatenate  and shuffle .
     x_sum = numpy.concatenate((x_train,x_test))
@@ -51,8 +51,9 @@ def main(argv=None):
     print(x_train.shape)
     print(x_test.shape)
 
-    # 85
-    max_document_length = 85
+    # 48
+    # min_document_length = 2
+    max_document_length = 48
 
     # expand (batch_size,MAX_SENTENCE_LENGTH,EMBEDDING_SIZE) to (batch_size,MAX_SENTENCE_LENGTH,EMBEDDING_SIZE,1)
     x_train = numpy.expand_dims(x_train,-1)
@@ -61,7 +62,7 @@ def main(argv=None):
     train_size = x_train.shape[0]
     num_epochs = NUM_EPOCHS
 
-    filter_sizes = [3,4,5]
+    filter_sizes = [1,2]
 
     # input
     # input is sentence
@@ -134,7 +135,10 @@ def main(argv=None):
 
     # optimizer
     global_step = tf.Variable(0, name="global_step", trainable=False)
-    optimizer = tf.train.AdamOptimizer(1e-3)
+    start_learning_rate = 1e-3
+    learning_rate=tf.train.exponential_decay(start_learning_rate,global_step*BATCH_SIZE,train_size,0.9,staircase=True)
+
+    optimizer = tf.train.AdamOptimizer(start_learning_rate)
     grads_and_vars = optimizer.compute_gradients(loss)
     train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
 
@@ -161,7 +165,7 @@ def main(argv=None):
             # Run the graph and fetch some of the nodes.
             _, step, losses, predictions = sess.run([train_op,global_step, loss,train_prediction],feed_dict=feed_dict)
             time_str = datetime.datetime.now().isoformat()
-            print("{}: step {}, loss {:g}, acc {:g}%".format(time_str, step, losses, error_rate(predictions,y_batch)))
+            print("{}: step {}, loss {:g}, acc {:g}%".format(time_str, step, losses,error_rate(predictions,y_batch)))
 
             if step % EVAL_FREQUENCY == 0:
                 print("\nEvaluation:")

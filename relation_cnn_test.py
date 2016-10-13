@@ -13,7 +13,7 @@ NUM_CLASSES = 10
 EMBEDDING_SIZE = 100
 NUM_CHANNELS = 1
 SEED = 66478
-BATCH_SIZE = 64
+BATCH_SIZE = 128
 CONVOLUTION_KERNEL_NUMBER = 100
 NUM_EPOCHS = 200
 EVAL_FREQUENCY = 100
@@ -21,8 +21,8 @@ EVAL_FREQUENCY = 100
 FLAGS=tf.app.flags.FLAGS
 
 
-def error_rate(batch_predictions,labels):
-    correct_predictions = tf.equal(batch_predictions, tf.convert_to_tensor(numpy.argmax(labels, 1)))
+def error_rate(predictions,labels):
+    correct_predictions = tf.equal(predictions, tf.convert_to_tensor(numpy.argmax(labels, 1)))
     # accuracy = tf.reduce_mean(tf.cast(correct_predictions,tf.float32), name="accuracy")
     accuracy = numpy.mean(tf.cast(correct_predictions,tf.float32).eval())
     return 100*accuracy
@@ -31,15 +31,22 @@ def main(argv=None):
 
     # load data
     print("Loading data ... ")
-    x,y = load_data.load_train_data()
+    x_train,y_train = load_data.load_train_data()
     x_test,y_test = load_data.load_test_data()
 
-    # concatenate . 8000+2000 train , 700 test .
-    x_train = numpy.concatenate((x,x_test[:2000]))
-    y_train = numpy.concatenate((y,y_test[:2000]))
+    # concatenate  and shuffle .
+    x_sum = numpy.concatenate((x_train,x_test))
+    y_sum = numpy.concatenate((y_train,y_test))
+    numpy.random.seed(10)
+    shuffle_indices = numpy.random.permutation(numpy.arange(len(y_sum)))
+    x_shuffled = x_sum[shuffle_indices]
+    y_shuffled = y_sum[shuffle_indices]
 
-    x_test=x_test[2000:]
-    y_test=y_test[2000:]
+    # split to train and test .
+    x_train = x_shuffled[1000:]
+    y_train = y_shuffled[1000:]
+    x_test=x_shuffled[:1000]
+    y_test=y_shuffled[:1000]
 
     print(x_train.shape)
     print(x_test.shape)
@@ -63,10 +70,6 @@ def main(argv=None):
     train_labels_node = tf.placeholder(tf.float32,shape=(None,NUM_CLASSES))
 
     dropout_keep_prob = tf.placeholder(tf.float32,name="dropout_keep_prob")
-
-    dev_data_node = tf.placeholder(tf.float32,shape=(None,max_document_length,EMBEDDING_SIZE,NUM_CHANNELS))
-
-    dev_labels_node = tf.placeholder(tf.float32,shape=(None,NUM_CLASSES))
 
     # full connected - softmax layer,
     fc1_weights = tf.Variable(
@@ -132,29 +135,21 @@ def main(argv=None):
     # optimizer
     global_step = tf.Variable(0, name="global_step", trainable=False)
     start_learning_rate = 1e-3
-    decay_steps = 5000
-    learning_rate=tf.train.exponential_decay(start_learning_rate,global_step,decay_steps,0.95,staircase=True)
+    learning_rate=tf.train.exponential_decay(start_learning_rate,global_step*BATCH_SIZE,train_size,0.9,staircase=True)
 
-    # Adam
-    optimizer = tf.train.AdamOptimizer(learning_rate)
+    optimizer = tf.train.AdamOptimizer(start_learning_rate)
     grads_and_vars = optimizer.compute_gradients(loss)
     train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
-
-    # Momentum
-    # train_op =tf.train.MomentumOptimizer(learning_rate,0.9).minimize(loss,global_step=global_step)
 
     # prediction for the current training minibatch
     train_prediction = tf.argmax(logits, 1, name="train_predictions")
 
-    dev_prediction = tf.argmax(model(dev_data_node,True),1,name="dev_predictions")
-    dev_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(model(dev_data_node,True),dev_labels_node)) + 0.05 * regularizers
-
     def dev_step(x_batch,y_batch,sess):
-        feed_dict = {dev_data_node: x_batch,dev_labels_node:y_batch,dropout_keep_prob:1.0}
+        feed_dict = {train_data_node: x_batch,train_labels_node: y_batch,dropout_keep_prob:1.0}
         # Run the graph and fetch some of the nodes.
-        step, dev_losses, dev_predictions = sess.run([global_step, dev_loss,dev_prediction],feed_dict=feed_dict)
+        step, losses,lr, predictions = sess.run([global_step, loss,learning_rate,train_prediction],feed_dict=feed_dict)
         time_str = datetime.datetime.now().isoformat()
-        print("{}: step {}, loss {:g}, acc {:g}%".format(time_str, step,dev_losses, error_rate(dev_predictions,y_batch)))
+        print("{}: step {}, loss {:g}, lr {:g}, acc {:g}%".format(time_str, step, losses,lr, error_rate(predictions,y_batch)))
 
     # run the training
     with tf.Session() as sess:
@@ -165,11 +160,11 @@ def main(argv=None):
         # Training loop.For each batch...
         for batch in batches:
             x_batch, y_batch = zip(*batch)
-            feed_dict = {train_data_node: x_batch,train_labels_node: y_batch,dropout_keep_prob:0.5}
+            feed_dict = {train_data_node: x_batch,train_labels_node: y_batch,dropout_keep_prob:0.75}
             # Run the graph and fetch some of the nodes.
-            _, step, losses, predictions = sess.run([train_op,global_step, loss,train_prediction],feed_dict=feed_dict)
+            _, step, losses,lr, predictions = sess.run([train_op,global_step, loss,learning_rate,train_prediction],feed_dict=feed_dict)
             time_str = datetime.datetime.now().isoformat()
-            print("{}: step {}, loss {:g}, acc {:g}%".format(time_str, step, losses, error_rate(predictions,y_batch)))
+            print("{}: step {}, loss {:g}, lr {:g}, acc {:g}%".format(time_str, step, losses,lr,error_rate(predictions,y_batch)))
 
             if step % EVAL_FREQUENCY == 0:
                 print("\nEvaluation:")
