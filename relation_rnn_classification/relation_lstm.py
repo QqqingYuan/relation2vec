@@ -8,13 +8,15 @@ from six.moves import xrange
 import datetime
 import dependency_load_data
 import data_helpers
+import argparse
 
 NUM_CLASSES = 10
 EMBEDDING_SIZE = 100
 SEED = 66478
 BATCH_SIZE = 128
-NUM_EPOCHS = 200
+NUM_EPOCHS = 400
 EVAL_FREQUENCY = 100
+META_FREQUENCY = 100
 # LSTM
 # 48
 max_document_length = 48
@@ -22,9 +24,10 @@ NUM_STEPS = max_document_length
 num_hidden = 128
 rnn_layer = 1
 
-FLAGS=tf.app.flags.FLAGS
+# FLAGS=tf.app.flags.FLAGS
+FLAGS = None
 
-def main(argv=None):
+def train(argv=None):
 
     # load data
     print("Loading data ... ")
@@ -95,6 +98,8 @@ def main(argv=None):
     # add value clip to logits
     loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(tf.clip_by_value(logits,1e-10,1.0),train_labels_node))
 
+    tf.scalar_summary('loss', loss)
+
     # optimizer
     global_step = tf.Variable(0, name="global_step", trainable=False)
     # adamoptimizer
@@ -107,33 +112,71 @@ def main(argv=None):
     correct_pred = tf.equal(tf.argmax(logits,1), tf.argmax(train_labels_node,1))
     accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
+    tf.scalar_summary('acc', accuracy)
+    merged = tf.merge_all_summaries()
 
     def dev_step(x_batch,y_batch,sess):
         feed_dict = {train_data_node: x_batch,train_labels_node: y_batch}
         # Run the graph and fetch some of the nodes.
-        _, step, losses, acc= sess.run([train_op,global_step, loss,accuracy],feed_dict=feed_dict)
+        _, summary, step, losses, acc= sess.run([train_op,merged,global_step, loss,accuracy],feed_dict=feed_dict)
+        test_writer.add_summary(summary, step)
         time_str = datetime.datetime.now().isoformat()
         print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, losses,acc))
 
     # run the training
     with tf.Session() as sess:
+        train_writer = tf.train.SummaryWriter(FLAGS.summaries_dir + '/train',sess.graph)
+        test_writer = tf.train.SummaryWriter(FLAGS.summaries_dir + '/test')
+
         tf.initialize_all_variables().run()
         print('Initialized!')
         # Generate batches
         batches = data_helpers.batch_iter(list(zip(x_train,y_train)),BATCH_SIZE,NUM_EPOCHS)
+        # batch count
+        batch_count = 0
         # Training loop.For each batch...
         for batch in batches:
-            x_batch, y_batch = zip(*batch)
-            feed_dict = {train_data_node: x_batch,train_labels_node: y_batch}
-            # Run the graph and fetch some of the nodes.
-            _, step, losses, acc = sess.run([train_op,global_step, loss,accuracy],feed_dict=feed_dict)
-            time_str = datetime.datetime.now().isoformat()
-            print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, losses,acc))
-
-            if step % EVAL_FREQUENCY == 0:
+            batch_count += 1
+            if batch_count % EVAL_FREQUENCY == 0:
                 print("\nEvaluation:")
                 dev_step(x_test,y_test,sess)
                 print("")
+            else:
+                if  batch_count % META_FREQUENCY == 99:
+                    x_batch, y_batch = zip(*batch)
+                    feed_dict = {train_data_node: x_batch,train_labels_node: y_batch}
+                    # Run the graph and fetch some of the nodes.
+                    # option
+                    run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
+                    run_metadata = tf.RunMetadata()
+                    _,summary, step, losses, acc = sess.run([train_op,merged,global_step, loss,accuracy],
+                                                            feed_dict=feed_dict,
+                                                            options=run_options,
+                                                            run_metadata=run_metadata)
+                    train_writer.add_run_metadata(run_metadata, 'step%03d' % step)
+                    train_writer.add_summary(summary, step)
+                    time_str = datetime.datetime.now().isoformat()
+                    print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, losses,acc))
+                else:
+                    x_batch, y_batch = zip(*batch)
+                    feed_dict = {train_data_node: x_batch,train_labels_node: y_batch}
+                    # Run the graph and fetch some of the nodes.
+                    _, summary, step, losses, acc = sess.run([train_op,merged,global_step, loss,accuracy],feed_dict=feed_dict)
+                    train_writer.add_summary(summary, step)
+                    time_str = datetime.datetime.now().isoformat()
+                    print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, losses,acc))
+
+        train_writer.close()
+        test_writer.close()
+
+def main(_):
+    if tf.gfile.Exists(FLAGS.summaries_dir):
+        tf.gfile.DeleteRecursively(FLAGS.summaries_dir)
+    tf.gfile.MakeDirs(FLAGS.summaries_dir)
+    train()
 
 if __name__ == '__main__':
-  tf.app.run()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--summaries_dir', type=str, default='/tmp/lstm_logs',help='Summaries directory')
+    FLAGS = parser.parse_args()
+    tf.app.run()
