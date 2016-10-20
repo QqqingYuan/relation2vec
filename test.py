@@ -1,5 +1,7 @@
 __author__ = 'PC-LiNing'
 
-str = 'hello,world'
+import numpy as np
 
-print(len(str))
+# sent_matrix=np.ndarray(shape=(5,5),dtype=np.float32)
+sent_matrix = np.zeros(shape=(5,5),dtype=np.float32)
+print(sent_matrix)
