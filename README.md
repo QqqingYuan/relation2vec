@@ -12,6 +12,8 @@
 
 5. [highway-cnn](https://github.com/fomorians/highway-cnn)
 
+6. [ner-lstm](https://github.com/monikkinom/ner-lstm)
+
 ## reference
 
 1. [Character-Aware Neural Language Models](https://arxiv.org/pdf/1508.06615.pdf)
