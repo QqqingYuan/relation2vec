@@ -23,7 +23,8 @@ def getRandom_vec():
 # word embedding 's dimension is 300
 def  getSentence_matrix(sentence,Max_length):
      words=sentence.split()
-     sent_matrix=np.ndarray(shape=(Max_length,word_embedding_size),dtype=np.float32)
+     # sent_matrix=np.ndarray(shape=(Max_length,word_embedding_size),dtype=np.float32)
+     sent_matrix=np.zeros(shape=(Max_length,word_embedding_size),dtype=np.float32)
      i=0
      for word in words:
          try:
