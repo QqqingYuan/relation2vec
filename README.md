@@ -1,5 +1,9 @@
 #relation2vec
 
+## dataset
+
+1. [Annotated-Semantic-Relationships-Datasets](https://github.com/davidsbatista/Annotated-Semantic-Relationships-Datasets)
+
 ## code
 
 1. [lstm-char-cnn-tensorflow](https://github.com/carpedm20/lstm-char-cnn-tensorflow)
@@ -11,6 +15,8 @@
 4. [highway-fcn](https://github.com/fomorians/highway-fcn)
 
 5. [highway-cnn](https://github.com/fomorians/highway-cnn)
+
+6. [ner-lstm](https://github.com/monikkinom/ner-lstm)
 
 ## reference
 
