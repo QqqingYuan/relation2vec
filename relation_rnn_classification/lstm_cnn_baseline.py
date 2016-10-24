@@ -10,6 +10,7 @@ import dependency_load_data
 import data_helpers
 import argparse
 from Highway import highways
+from sklearn.metrics import recall_score,accuracy_score,f1_score
 
 NUM_CLASSES = 10
 EMBEDDING_SIZE = 100
@@ -27,9 +28,15 @@ rnn_layer = 1
 # CNN
 NUM_CHANNELS = 1
 CONVOLUTION_KERNEL_NUMBER = 100
+learning_rate_decay = 0.5
+# decay_delta need change when learning rate is reduce .
+decay_delta = 0.01
+min_learning_rate = 1e-6
+start_learning_rate = 1e-3
 
 # FLAGS=tf.app.flags.FLAGS
 FLAGS = None
+
 
 def train(argv=None):
 
@@ -59,6 +66,8 @@ def train(argv=None):
 
     train_size = x_train.shape[0]
     num_epochs = NUM_EPOCHS
+    # 500
+    steps_each_check = 500
 
     # input
     # input is sentence
@@ -150,9 +159,9 @@ def train(argv=None):
         # [batch_size,num_filters_total]
         cnn_output = tf.reshape(h_pool, [-1, num_filters_total])
         # add dropout
-        cnn_dropout = tf.nn.dropout(cnn_output,dropout_keep_prob)
+        cnn_output = tf.nn.dropout(cnn_output,dropout_keep_prob)
         # fc1 layer
-        hidden = tf.matmul(cnn_dropout, fc1_weights) + fc1_biases
+        hidden = tf.matmul(cnn_output, fc1_weights) + fc1_biases
         return hidden
 
     # Training computation
@@ -165,9 +174,8 @@ def train(argv=None):
 
     # optimizer
     global_step = tf.Variable(0, name="global_step", trainable=False)
-    start_learning_rate = 1e-3
-    # learning_rate=tf.train.exponential_decay(start_learning_rate,global_step,5000,0.95,staircase=True)
-    learning_rate = start_learning_rate
+    # learning_rate=tf.train.exponential_decay(start_learning_rate,global_step,5000,0.5,staircase=True)
+    learning_rate = tf.Variable(start_learning_rate,name="learning_rate")
 
     tf.scalar_summary('lr', learning_rate)
 
@@ -178,20 +186,58 @@ def train(argv=None):
     train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
 
     # Evaluate model
-    correct_pred = tf.equal(tf.argmax(logits,1), tf.argmax(train_labels_node,1))
+    train_predict = tf.argmax(logits,1)
+    train_label = tf.argmax(train_labels_node,1)
+    correct_pred = tf.equal(train_predict,train_label)
     accuracy = tf.reduce_mean(tf.cast(correct_pred, tf.float32))
 
     tf.scalar_summary('acc', accuracy)
+
     merged = tf.merge_all_summaries()
 
-    def dev_step(x_batch,y_batch,sess):
+    def compute_index(y_label,y_predict):
+        # macro
+        print("{}: acc {:g}, recall {:g}, f1 {:g} ".format("macro",accuracy_score(y_label,y_predict),
+                                                           recall_score(y_label, y_predict, average='macro'),
+                                                           f1_score(y_label,y_predict, average='macro')))
+        # macro
+        print("{}: acc {:g}, recall {:g}, f1 {:g} ".format("micro",accuracy_score(y_label,y_predict),
+                                                           recall_score(y_label, y_predict, average='micro'),
+                                                           f1_score(y_label,y_predict, average='micro')))
+
+        # weighted
+        print("{}: acc {:g}, recall {:g}, f1 {:g} ".format("weighted",accuracy_score(y_label,y_predict),
+                                                           recall_score(y_label, y_predict, average='weighted'),
+                                                           f1_score(y_label,y_predict, average='weighted')))
+
+    def dev_step(x_batch,y_batch,best_test_loss,sess):
         feed_dict = {train_data_node: x_batch,train_labels_node: y_batch,dropout_keep_prob:0.5}
         # Run the graph and fetch some of the nodes.
-        _,summary,step, losses, acc= sess.run([train_op,merged,global_step, loss,accuracy],feed_dict=feed_dict)
+        _,summary,step, losses, lr,acc,y_label,y_predict= sess.run([train_op,merged,global_step, loss,learning_rate,accuracy,train_label,train_predict]
+                                                                   ,feed_dict=feed_dict)
         test_writer.add_summary(summary, step)
         time_str = datetime.datetime.now().isoformat()
-        # print("{}: step {}, loss {:g}, lr {:g} ,acc {:g}".format(time_str, step, losses,lr,acc))
-        print("{}: step {}, loss {:g} ,acc {:g}".format(time_str, step, losses,acc))
+        print("{}: step {}, loss {:g}, lr {:g} ,acc {:g}".format(time_str, step, losses,lr,acc))
+        # print("{}: step {}, loss {:g} ,acc {:g}".format(time_str, step, losses,acc))
+        # compute index
+        compute_index(y_label,y_predict)
+
+        new_best_test_loss = best_test_loss
+        # decide if need to decay learning rate
+        if (step % steps_each_check < 100) and (step > 100):
+            loss_delta = (best_test_loss if best_test_loss is not None else 0 ) - losses
+            if best_test_loss is not None and loss_delta < decay_delta:
+                print('validation loss did not improve enough, decay learning rate')
+                current_learning_rate = min_learning_rate if lr * learning_rate_decay < min_learning_rate else lr * learning_rate_decay
+                if current_learning_rate == min_learning_rate:
+                    print('It is already the smallest learning rate.')
+                sess.run(learning_rate.assign(current_learning_rate))
+                print('new learning rate is: ', current_learning_rate)
+            else:
+                # update
+                new_best_test_loss = losses
+
+        return new_best_test_loss
 
     # run the training
     with tf.Session() as sess:
@@ -203,12 +249,13 @@ def train(argv=None):
         batches = data_helpers.batch_iter(list(zip(x_train,y_train)),BATCH_SIZE,NUM_EPOCHS)
         # batch count
         batch_count = 0
+        best_test_loss = None
         # Training loop.For each batch...
         for batch in batches:
             batch_count += 1
             if batch_count % EVAL_FREQUENCY == 0:
                 print("\nEvaluation:")
-                dev_step(x_test,y_test,sess)
+                best_test_loss=dev_step(x_test,y_test,best_test_loss,sess)
                 print("")
             else:
                 if  batch_count % META_FREQUENCY == 99:
