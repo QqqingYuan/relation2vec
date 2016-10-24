@@ -31,7 +31,7 @@ CONVOLUTION_KERNEL_NUMBER = 100
 learning_rate_decay = 0.5
 # decay_delta need change when learning rate is reduce .
 decay_delta = 0.01
-min_learning_rate = 1e-6
+min_learning_rate = 5e-5
 start_learning_rate = 1e-3
 
 # FLAGS=tf.app.flags.FLAGS
@@ -69,20 +69,12 @@ def train(argv=None):
     # 500
     steps_each_check = 500
 
-    # input
     # input is sentence
     train_data_node = tf.placeholder(tf.float32,shape=(None,NUM_STEPS,EMBEDDING_SIZE))
 
     train_labels_node = tf.placeholder(tf.float32,shape=(None,NUM_CLASSES))
 
     dropout_keep_prob = tf.placeholder(tf.float32,name="dropout_keep_prob")
-
-    weights = tf.Variable(
-        tf.random_normal([2*num_hidden,NUM_CLASSES])
-        # tf.truncated_normal([num_hidden,NUM_CLASSES],stddev=0.1,seed=SEED,dtype=tf.float32)
-    )
-
-    biases = tf.Variable(tf.random_normal(shape=[NUM_CLASSES], dtype=tf.float32))
 
     filter_sizes = [2,3,4]
 
@@ -96,7 +88,7 @@ def train(argv=None):
     fc1_biases = tf.Variable(tf.constant(0.1, shape=[NUM_CLASSES], dtype=tf.float32))
 
     # model
-    def model(x,weights,biases):
+    def model(x):
         # Current data input shape: (batch_size, n_steps, n_input)
         x = tf.transpose(x, [1, 0, 2])
         # (n_steps*batch_size, n_input)
@@ -166,7 +158,7 @@ def train(argv=None):
 
     # Training computation
     # [batch_size,num_classes]
-    logits = model(train_data_node,weights,biases)
+    logits = model(train_data_node)
     # add value clip to logits
     loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(tf.clip_by_value(logits,1e-10,1.0),train_labels_node))
 

@@ -1,20 +1,24 @@
 __author__ = 'PC-LiNing'
 
-import numpy as np
+import tensorflow as tf
 
-from sklearn.metrics import recall_score,accuracy_score,f1_score
-y_true = [0, 3, 2, 0, 1, 2]
-y_pred = [0, 2, 1, 0, 0, 1]
-print('############')
-print(recall_score(y_true, y_pred, average='macro'))
-print(accuracy_score(y_true, y_pred))
-print(f1_score(y_true, y_pred, average='macro'))
-print('############')
-print(recall_score(y_true, y_pred, average='micro'))
-print(accuracy_score(y_true, y_pred))
-print(f1_score(y_true, y_pred, average='micro'))
-print('############')
-print(recall_score(y_true, y_pred, average='weighted'))
-print(accuracy_score(y_true, y_pred))
-print(f1_score(y_true, y_pred, average='weighted'))
-print('############')
+
+# test variable_scope
+
+with tf.variable_scope("var1"):
+    v = tf.get_variable("v", [1])
+
+with tf.variable_scope("var1"):
+    v1 = tf.get_variable("v", [1])
+
+test1=v.assign([2])
+test2=v1
+
+with tf.Session() as sess:
+    tf.initialize_all_variables().run()
+    t1,t2 = sess.run([test1,test2])
+    print(t1)
+    print(t2)
+
+
+
