@@ -846,7 +846,7 @@ Comment:
 Component-Whole(e2,e1)
 Comment:
 
-213	"In a former residence, your writer had an atrium containing a <e1>duel</e1> of doves<e2>moles</e2> numbering 22."
+213	"In a former residence, your writer had an atrium containing a <e1>duel</e1> of doves <e2>moles</e2> numbering 22."
 Member-Collection(e2,e1)
 Comment:
 
@@ -2706,7 +2706,7 @@ Comment:
 Entity-Origin(e1,e2)
 Comment:
 
-678	"The chavettes are the female of the species, usually have a '<e1>passel</e1> of <e2>brats</e2> with different dads before they turn 20 which ensures the perpetuation of the disease."
+678	"The chavettes are the female of the species, usually have a <e1>passel</e1> of <e2>brats</e2> with different dads before they turn 20 which ensures the perpetuation of the disease."
 Member-Collection(e2,e1)
 Comment:
 
@@ -4762,7 +4762,7 @@ Comment:
 Instrument-Agency(e2,e1)
 Comment:
 
-1192	"For Jung, the <e1>individual</e1> is a participant in a '<e2>collective unconscious</e2>'."
+1192	"For Jung, the <e1>individual</e1> is a participant in a <e2>collective unconscious</e2>."
 Other
 Comment:
 
@@ -10954,7 +10954,7 @@ Comment:
 Entity-Origin(e1,e2)
 Comment:
 
-2740	"The<e1>staff</e1> in the <e2>shop</e2> are all left-handed themselves and are happy to demonstrate products, explain why they are left-handed and give helpful advice to left-handers of all ages."
+2740	"The <e1>staff</e1> in the <e2>shop</e2> are all left-handed themselves and are happy to demonstrate products, explain why they are left-handed and give helpful advice to left-handers of all ages."
 Other
 Comment:
 
@@ -18442,7 +18442,7 @@ Comment:
 Cause-Effect(e1,e2)
 Comment: information is an occurrence
 
-4612	"The cerebral <e1>cortex</e1> is composed of a sheet of<e2>neurons</e2> that during evolution has increased by three orders of mag- nitude in surface area."
+4612	"The cerebral <e1>cortex</e1> is composed of a sheet of <e2>neurons</e2> that during evolution has increased by three orders of mag- nitude in surface area."
 Component-Whole(e2,e1)
 Comment:
 
@@ -19130,7 +19130,7 @@ Comment:
 Entity-Origin(e2,e1)
 Comment:
 
-4784	"When the<e1>coil</e1> of the <e2>relay</e2> is at rest (not energized), the common terminal (30) and the normally closed terminal (87a) have continuity."
+4784	"When the <e1>coil</e1> of the <e2>relay</e2> is at rest (not energized), the common terminal (30) and the normally closed terminal (87a) have continuity."
 Component-Whole(e1,e2)
 Comment:
 
@@ -25486,7 +25486,7 @@ Comment:
 Component-Whole(e1,e2)
 Comment:
 
-6373	"A talon is the <e1>claw</e1> of a<e2>bird</e2> of prey."
+6373	"A talon is the <e1>claw</e1> of a <e2>bird</e2> of prey."
 Component-Whole(e1,e2)
 Comment:
 
@@ -28670,7 +28670,7 @@ Comment: Personality is a state
 Other
 Comment: "good condition" is a possible state for batteries.
 
-7169	"In a clock, the '<e1>tick</e1>' is produced by the <e2>action</e2> of the escapement."
+7169	"In a clock, the <e1>tick</e1> is produced by the <e2>action</e2> of the escapement."
 Cause-Effect(e2,e1)
 Comment:
 

@@ -1638,7 +1638,7 @@ Comment:
 Entity-Destination(e1,e2)
 Comment: b.4. allows temporal destinations.
 
-8411	"The time to the arrival of the first Brownian <e1>particle</e1> from an equilibrated continuum<e2>bath</e2> to an absorbing sphere was shown by Bordewijk in 1975."
+8411	"The time to the arrival of the first Brownian <e1>particle</e1> from an equilibrated continuum <e2>bath</e2> to an absorbing sphere was shown by Bordewijk in 1975."
 Entity-Origin(e1,e2)
 Comment:
 
@@ -7462,7 +7462,7 @@ Comment:
 Member-Collection(e2,e1)
 Comment:
 
-9867	"The high <e1>pressure</e1> inside a<e2>caisson</e2> presents health risks."
+9867	"The high <e1>pressure</e1> inside a <e2>caisson</e2> presents health risks."
 Other
 Comment:
 
@@ -9638,7 +9638,7 @@ Comment: (a),(d) satisfied; modality is outside
 Other
 Comment: world is not a product
 
-10411	"Synaesthesia literally means '<e1>union</e1> of the <e2>senses</e2>' and is defined as the stimulation of one sensory modality by another (e.g., sound by vision)."
+10411	"Synaesthesia literally means <e1>union</e1> of the <e2>senses</e2> and is defined as the stimulation of one sensory modality by another (e.g., sound by vision)."
 Other
 Comment: Not a collection of _like_ elements.
 
@@ -10598,7 +10598,7 @@ Comment:
 Cause-Effect(e2,e1)
 Comment: (a) is satisfied
 
-10651	"The survey further refers to a '<e1>game</e1> of <e2>conies</e2>,' and a lodge and coney warren, in the tenure of Richard Hopgood by lease from Richard Gifford."
+10651	"The survey further refers to a <e1>game</e1> of <e2>conies</e2>, and a lodge and coney warren, in the tenure of Richard Hopgood by lease from Richard Gifford."
 Member-Collection(e2,e1)
 Comment: A collective name.
 
