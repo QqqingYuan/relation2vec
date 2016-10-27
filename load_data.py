@@ -108,7 +108,7 @@ def get_Max_length(texts):
 def get_Min_length(texts):
     return min([len(x[0].split(" ")) for x in texts])
 
-MAX_DOCUMENT_LENGTH = get_Max_length(SemEval_train_data())
+MAX_DOCUMENT_LENGTH = max(get_Max_length(SemEval_train_data()),get_Max_length(SemEval_test_data()))
 
 
 # change class number  to (num_class,) vector

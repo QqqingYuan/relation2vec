@@ -2,8 +2,10 @@ __author__ = 'PC-LiNing'
 
 import datetime
 import argparse
+
 import numpy
 from sklearn.metrics import recall_score,accuracy_score,f1_score
+
 import tensorflow as tf
 import dependency_load_data
 import data_helpers
@@ -103,9 +105,7 @@ def train(argv=None):
 
         # B-directional LSTM
         fw_cell = tf.nn.rnn_cell.LSTMCell(num_hidden,forget_bias=1.0,state_is_tuple=True)
-        fw_cell = tf.nn.rnn_cell.DropoutWrapper(fw_cell, output_keep_prob=dropout_keep_prob)
         bw_cell = tf.nn.rnn_cell.LSTMCell(num_hidden,forget_bias=1.0,state_is_tuple=True)
-        bw_cell = tf.nn.rnn_cell.DropoutWrapper(bw_cell, output_keep_prob=dropout_keep_prob)
 
         if rnn_layer > 1:
             fw_cell = tf.nn.rnn_cell.MultiRNNCell([fw_cell] * rnn_layer)
@@ -118,6 +118,10 @@ def train(argv=None):
         # Highway
         # convert to [batch_size,num_steps,num_hidden*2]
         hw_input=tf.transpose(tf.pack(outputs,axis=0), [1, 0, 2])
+
+        # add dropout for Bi-LSTM output
+        hw_input = tf.nn.dropout(hw_input,dropout_keep_prob)
+
         # convert to [batch_size x num_steps,num_hidden*2]
         hw_input = tf.reshape(hw_input, [-1,num_hidden*2])
         size = hw_input.get_shape()[1]

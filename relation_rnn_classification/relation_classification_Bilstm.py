@@ -1,14 +1,15 @@
 __author__ = 'PC-LiNing'
 
 import datetime
-import argparse
+
 import numpy
-from sklearn.metrics import recall_score,accuracy_score,f1_score
+
 import tensorflow as tf
 import dependency_load_data
 import data_helpers
-from Highway import highways
-from ops import conv2d
+from sklearn.metrics import recall_score,accuracy_score,f1_score
+import argparse
+
 
 NUM_CLASSES = 10
 EMBEDDING_SIZE = 100
@@ -21,16 +22,17 @@ META_FREQUENCY = 100
 # 15
 max_document_length = 15
 NUM_STEPS = max_document_length
-num_hidden = 128
+num_hidden = 256
 rnn_layer = 1
-# CNN
-NUM_CHANNELS = 1
+
 learning_rate_decay = 0.5
 # decay_delta need change when learning rate is reduce .
 decay_delta = 0.005
 min_learning_rate = 5e-5
 start_learning_rate = 1e-3
 
+# train
+steps_each_check = 500
 # test size
 Test_Size = 717
 
@@ -39,6 +41,7 @@ FLAGS = None
 
 
 def train(argv=None):
+
     # load data
     print("Loading data ... ")
     x_train,y_train = dependency_load_data.load_train_data()
@@ -62,8 +65,6 @@ def train(argv=None):
 
     print(x_train.shape)
     print(x_test.shape)
-    # 500
-    steps_each_check = 500
 
     # input
     # input is sentence
@@ -73,24 +74,12 @@ def train(argv=None):
 
     dropout_keep_prob = tf.placeholder(tf.float32,name="dropout_keep_prob")
 
-    filter_sizes = [2,3,4,5,6]
-    filter_numbers = [300,200,150,100,100]
-    # full connected - softmax layer,
     fc1_weights = tf.Variable(
-      tf.truncated_normal([sum(filter_numbers),100],
-                          stddev=0.1,
-                          seed=SEED,
-                          dtype=tf.float32))
+        tf.random_normal([2*num_hidden,NUM_CLASSES])
+        # tf.truncated_normal([num_hidden,NUM_CLASSES],stddev=0.1,seed=SEED,dtype=tf.float32)
+    )
 
-    fc1_biases = tf.Variable(tf.constant(0.01, shape=[100], dtype=tf.float32))
-
-    fc2_weights = tf.Variable(
-      tf.truncated_normal([100,NUM_CLASSES],
-                          stddev=0.1,
-                          seed=SEED,
-                          dtype=tf.float32))
-
-    fc2_biases = tf.Variable(tf.constant(0.01, shape=[NUM_CLASSES], dtype=tf.float32))
+    fc1_biases = tf.Variable(tf.random_normal(shape=[NUM_CLASSES], dtype=tf.float32))
 
     # model
     def model(x):
@@ -111,61 +100,37 @@ def train(argv=None):
             fw_cell = tf.nn.rnn_cell.MultiRNNCell([fw_cell] * rnn_layer)
             bw_cell = tf.nn.rnn_cell.MultiRNNCell([bw_cell] * rnn_layer)
 
-        # output = [batch_size,num_hidden*2]
-        # outputs of Bi-directional LSTM to highway
         outputs, fw_final_state, bw_final_state = tf.nn.bidirectional_rnn(fw_cell, bw_cell,x, dtype=tf.float32)
 
-        # Highway
-        # convert to [batch_size,num_steps,num_hidden*2]
-        hw_input=tf.transpose(tf.pack(outputs,axis=0), [1, 0, 2])
-        # convert to [batch_size x num_steps,num_hidden*2]
-        hw_input = tf.reshape(hw_input, [-1,num_hidden*2])
-        size = hw_input.get_shape()[1]
-        # size = num_hidden*2
-        # tf.tanh
-        # hw_output=[batch_size x num_steps,num_hidden*2]
-        hw_output=highways(hw_input,size)
+        # initial_state = lstm_cell.zero_state(batch_size,dtype=tf.float32)
+        # handle  all output
+        # output = [batch_size,num_hidden*2]
 
-        # convert to [batch_size,num_steps,num_hidden*2]
-        hw_output = tf.reshape(hw_output, [-1,NUM_STEPS,num_hidden*2])
+        # add all output
+        # merge_ouput = tf.matmul(tf.add_n(outputs), fc1_weights) + fc1_biases
 
-        # expand dim , cnn_input=[batch_size,num_steps,num_hidden*2,1]
-        cnn_input=tf.expand_dims(hw_output, -1)
-        # CNN
-        pooled_outputs = []
-        for idx, filter_size in enumerate(filter_sizes):
-            conv = conv2d(cnn_input,filter_numbers[idx],filter_size,num_hidden*2,name="kernel%d" % idx)
-            # 1-max pooling,leave a tensor of shape[batch_size,1,1,num_filters]
-            pool = tf.nn.max_pool(conv,ksize=[1,max_document_length-filter_size+1,1,1],strides=[1, 1, 1, 1],padding='VALID')
-            pooled_outputs.append(tf.squeeze(pool))
+        # dim-max
+        dim_max = outputs[0]
+        for output in outputs:
+            dim_max = tf.maximum(dim_max,output)
 
-        if len(filter_sizes) > 1:
-            cnn_output = tf.concat(1,pooled_outputs)
-        else:
-            cnn_output = pooled_outputs[0]
-
-        # add dropout
-        cnn_output = tf.nn.dropout(cnn_output,dropout_keep_prob)
-        # fc1 layer
-        hidden = tf.matmul(cnn_output, fc1_weights) + fc1_biases
-        # fc2 layer
-        fc_output = tf.matmul(hidden,fc2_weights) + fc2_biases
-        return fc_output
+        merge_output = tf.matmul(dim_max, fc1_weights) + fc1_biases
+        # merge_output = [batch_size,num_classes]
+        return merge_output
 
     # Training computation
     # [batch_size,num_classes]
     logits = model(train_data_node)
     # add value clip to logits
     loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(tf.clip_by_value(logits,1e-10,1.0),train_labels_node))
-    regularization = tf.nn.l2_loss(fc1_weights)+tf.nn.l2_loss(fc1_biases)+tf.nn.l2_loss(fc2_weights)\
-                     + tf.nn.l2_loss(fc2_biases)
-    loss += 0.01 * regularization
+    # L2 regularization for the fully connected parameters.
+    regularizers = (tf.nn.l2_loss(fc1_weights) + tf.nn.l2_loss(fc1_biases))
+    loss += 0.05 * regularizers
 
     tf.scalar_summary('loss', loss)
 
     # optimizer
     global_step = tf.Variable(0, name="global_step", trainable=False)
-    # learning_rate=tf.train.exponential_decay(start_learning_rate,global_step,5000,0.5,staircase=True)
     learning_rate = tf.Variable(start_learning_rate,name="learning_rate")
 
     tf.scalar_summary('lr', learning_rate)
@@ -285,6 +250,6 @@ def main(_):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--summaries_dir', type=str, default='/tmp/lstm_cnn_logs',help='Summaries directory')
+    parser.add_argument('--summaries_dir', type=str, default='/tmp/blstm_logs',help='Summaries directory')
     FLAGS = parser.parse_args()
     tf.app.run()

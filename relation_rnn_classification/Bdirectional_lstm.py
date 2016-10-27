@@ -1,15 +1,13 @@
 __author__ = 'PC-LiNing'
 
-import tensorflow as tf
-import numpy
-import time
-import sys
-from six.moves import xrange
 import datetime
-import dependency_load_data
-import data_helpers
 import argparse
 
+import numpy
+
+import tensorflow as tf
+from test import dependency_load_data
+import data_helpers
 
 NUM_CLASSES = 10
 EMBEDDING_SIZE = 100
@@ -19,8 +17,8 @@ NUM_EPOCHS = 400
 EVAL_FREQUENCY = 100
 META_FREQUENCY = 100
 # LSTM
-# 48
-max_document_length = 48
+# 15
+max_document_length = 15
 NUM_STEPS = max_document_length
 num_hidden = 128
 rnn_layer = 1
@@ -53,9 +51,6 @@ def train(argv=None):
 
     print(x_train.shape)
     print(x_test.shape)
-
-    train_size = x_train.shape[0]
-    num_epochs = NUM_EPOCHS
 
     # input
     # input is sentence
@@ -130,9 +125,9 @@ def train(argv=None):
     merged = tf.merge_all_summaries()
 
     def dev_step(x_batch,y_batch,sess):
-        feed_dict = {train_data_node: x_batch,train_labels_node: y_batch,dropout_keep_prob:0.5}
+        feed_dict = {train_data_node: x_batch,train_labels_node: y_batch,dropout_keep_prob:1.0}
         # Run the graph and fetch some of the nodes.
-        _,summary,step, losses, acc= sess.run([train_op,merged,global_step, loss,accuracy],feed_dict=feed_dict)
+        summary,step, losses, acc= sess.run([merged,global_step, loss,accuracy],feed_dict=feed_dict)
         test_writer.add_summary(summary, step)
         time_str = datetime.datetime.now().isoformat()
         # print("{}: step {}, loss {:g}, lr {:g} ,acc {:g}".format(time_str, step, losses,lr,acc))

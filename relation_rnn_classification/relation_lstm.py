@@ -1,14 +1,13 @@
 __author__ = 'PC-LiNing'
 
-import tensorflow as tf
-import numpy
-import time
-import sys
-from six.moves import xrange
 import datetime
-import dependency_load_data
-import data_helpers
 import argparse
+
+import numpy
+
+import tensorflow as tf
+from test import dependency_load_data
+import data_helpers
 
 NUM_CLASSES = 10
 EMBEDDING_SIZE = 100
@@ -118,7 +117,7 @@ def train(argv=None):
     def dev_step(x_batch,y_batch,sess):
         feed_dict = {train_data_node: x_batch,train_labels_node: y_batch}
         # Run the graph and fetch some of the nodes.
-        _, summary, step, losses, acc= sess.run([train_op,merged,global_step, loss,accuracy],feed_dict=feed_dict)
+        summary, step, losses, acc= sess.run([merged,global_step, loss,accuracy],feed_dict=feed_dict)
         test_writer.add_summary(summary, step)
         time_str = datetime.datetime.now().isoformat()
         print("{}: step {}, loss {:g}, acc {:g}".format(time_str, step, losses,acc))
