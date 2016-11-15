@@ -4,10 +4,12 @@ import re
 
 import numpy
 
-import util
+import util_redis
+# import util
+# import util_old
 import spacy_parser
 
-word_embedding_size = util.word_embedding_size
+word_embedding_size = util_redis.word_embedding_size
 num_classes = 10
 
 
@@ -158,7 +160,7 @@ def load_train_data():
     i = 0
     for one in semeval_data:
         sentence = one[0]
-        train_data[i]=util.getSentence_matrix(sentence,MAX_DOCUMENT_LENGTH)
+        train_data[i]=util_redis.getSentence_matrix(sentence,MAX_DOCUMENT_LENGTH)
         train_label[i]=getLabelVector(one[3],num_class=num_classes)
         i+=1
 
@@ -173,8 +175,14 @@ def load_test_data():
     i = 0
     for one in semeval_data:
         sentence = one[0]
-        train_data[i]=util.getSentence_matrix(sentence,MAX_DOCUMENT_LENGTH)
+        train_data[i]=util_redis.getSentence_matrix(sentence,MAX_DOCUMENT_LENGTH)
         train_label[i]=getLabelVector(one[3],num_class=num_classes)
         i+=1
 
     return train_data,train_label
+
+
+# exception words
+def  get_exception_number():
+    # return 0
+    return len(util_redis.exception_words)
