@@ -13,7 +13,7 @@ from Highway import highways
 from ops import conv2d
 
 NUM_CLASSES = 10
-EMBEDDING_SIZE = 100
+EMBEDDING_SIZE = 200
 SEED = 66478
 BATCH_SIZE = 128
 NUM_EPOCHS = 200
@@ -23,13 +23,13 @@ META_FREQUENCY = 100
 # 15
 max_document_length = 15
 NUM_STEPS = max_document_length
-num_hidden = 128
+num_hidden = 256
 rnn_layer = 1
 # CNN
 NUM_CHANNELS = 1
 learning_rate_decay = 0.5
 # decay_delta need change when learning rate is reduce .
-decay_delta = 0.005
+decay_delta = 0.1
 min_learning_rate = 5e-5
 start_learning_rate = 1e-3
 
@@ -64,6 +64,7 @@ def train(argv=None):
 
     print(x_train.shape)
     print(x_test.shape)
+    print("exception words : "+str(dependency_load_data.get_exception_number()))
     # 500
     steps_each_check = 500
 
@@ -75,19 +76,19 @@ def train(argv=None):
 
     dropout_keep_prob = tf.placeholder(tf.float32,name="dropout_keep_prob")
 
-    filter_sizes = [2,3,4,5,6]
-    filter_numbers = [300,200,150,100,100]
+    filter_sizes = [1,2,3,4,5,6]
+    filter_numbers = [300,300,200,200,150,150]
     # full connected - softmax layer,
     fc1_weights = tf.Variable(
-      tf.truncated_normal([sum(filter_numbers),100],
+      tf.truncated_normal([sum(filter_numbers),200],
                           stddev=0.1,
                           seed=SEED,
                           dtype=tf.float32))
 
-    fc1_biases = tf.Variable(tf.constant(0.01, shape=[100], dtype=tf.float32))
+    fc1_biases = tf.Variable(tf.constant(0.01, shape=[200], dtype=tf.float32))
 
     fc2_weights = tf.Variable(
-      tf.truncated_normal([100,NUM_CLASSES],
+      tf.truncated_normal([200,NUM_CLASSES],
                           stddev=0.1,
                           seed=SEED,
                           dtype=tf.float32))
@@ -152,15 +153,16 @@ def train(argv=None):
         cnn_output = tf.nn.dropout(cnn_output,dropout_keep_prob)
         # fc1 layer
         hidden = tf.matmul(cnn_output, fc1_weights) + fc1_biases
+        fc1_output = tf.sigmoid(hidden)
         # fc2 layer
-        fc_output = tf.matmul(hidden,fc2_weights) + fc2_biases
+        fc_output = tf.matmul(fc1_output,fc2_weights) + fc2_biases
         return fc_output
 
     # Training computation
     # [batch_size,num_classes]
     logits = model(train_data_node)
     # add value clip to logits
-    loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(tf.clip_by_value(logits,1e-10,1.0),train_labels_node))
+    loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(tf.clip_by_value(logits,1e-10,1e10),train_labels_node))
     regularization = tf.nn.l2_loss(fc1_weights)+tf.nn.l2_loss(fc1_biases)+tf.nn.l2_loss(fc2_weights)\
                      + tf.nn.l2_loss(fc2_biases)
     loss += 0.01 * regularization
@@ -178,7 +180,16 @@ def train(argv=None):
     optimizer = tf.train.AdamOptimizer(learning_rate)
     # optimizer = tf.train.GradientDescentOptimizer(learning_rate)
     grads_and_vars = optimizer.compute_gradients(loss)
-    train_op = optimizer.apply_gradients(grads_and_vars, global_step=global_step)
+    params = tf.trainable_variables()
+    grads = []
+    max_grad_norm = 2
+    for grad in tf.gradients(loss,params):
+        if grad is not None:
+            grads.append(tf.clip_by_norm(grad,max_grad_norm))
+        else:
+            grads.append(grad)
+
+    train_op = optimizer.apply_gradients(zip(grads,params), global_step=global_step)
 
     # Evaluate model
     train_predict = tf.argmax(logits,1)

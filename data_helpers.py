@@ -77,7 +77,6 @@ def load2_data_and_labels():
     return [x, y]
 
 
-
 def batch_iter(data, batch_size, num_epochs, shuffle=True):
     """
     Generates a batch iterator for a dataset.

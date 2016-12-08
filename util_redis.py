@@ -9,7 +9,8 @@ word_embedding_size = 200
 r = redis.StrictRedis(host='10.2.1.35',port=6379,db=0)
 
 # exception word
-# 674
+# sdp 674
+# sentence 18188
 exception_words = []
 
 # random init a 200-dim vector

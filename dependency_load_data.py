@@ -51,11 +51,11 @@ def  Parse_Sentence(sentence):
     # dependency path
     path =sentence.replace('<e1>','').replace('</e1>','').replace('<e2>','').replace('</e2>','').strip('\n').strip('.').strip('\"')
     try:
-        path = spacy_parser.parse_sent(sent,entity_e1,e1,entity_e2,e2)
+        path,d_e1,d_e2= spacy_parser.parse_sent(sent,entity_e1,e1,entity_e2,e2)
     except Exception as e:
         print(sentence)
         # pass
-    return  path,e1,e2
+    return  path,d_e1,d_e2
 
 # relation label to number
 # 1 Cause-Effect
@@ -183,6 +183,6 @@ def load_test_data():
 
 
 # exception words
-def  get_exception_number():
+def get_exception_number():
     # return 0
     return len(util_redis.exception_words)

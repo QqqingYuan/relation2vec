@@ -12,15 +12,31 @@ model = Word2Vec.load_word2vec_format('wordvec/wikienpartabvec.bin',binary=True)
 
 word_embedding_size = 100
 
+# exception word
+# 693
+exception_words = []
 
-# random init a 300-dim vector
+
+# random init a 100-dim vector
 def getRandom_vec():
     vec=np.random.rand(word_embedding_size)
     norm=np.sum(vec**2)**0.5
     normalized = vec / norm
     return normalized
 
-# word embedding 's dimension is 300
+
+# random exception words vector
+def init_exception_words(number):
+    exp_matrix = np.zeros(shape=(number,word_embedding_size),dtype=np.float32)
+    for i in range(number):
+        exp_matrix[i] = getRandom_vec()
+    return exp_matrix
+
+
+# exception word embed
+exception_embeddings = init_exception_words(693)
+
+# word embedding 's dimension is 100
 def  getSentence_matrix(sentence,Max_length):
      words=sentence.split()
      # sent_matrix=np.ndarray(shape=(Max_length,word_embedding_size),dtype=np.float32)
@@ -31,8 +47,12 @@ def  getSentence_matrix(sentence,Max_length):
             vec=model[word]
             sent_matrix[i]=vec
          except KeyError as e:
-            vec=getRandom_vec()
-            sent_matrix[i]=vec
+             # if word in exception_words
+             if word not in exception_words:
+                 exception_words.append(word)
+
+             vec=exception_embeddings[exception_words.index(word)]
+             sent_matrix[i]=vec
          i+=1
      return sent_matrix
 

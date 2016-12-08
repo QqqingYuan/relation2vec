@@ -10,6 +10,7 @@ import data_helpers
 from Highway import highways
 from ops import conv2d
 
+
 NUM_CLASSES = 10
 EMBEDDING_SIZE = 100
 SEED = 66478
@@ -62,6 +63,7 @@ def train(argv=None):
 
     print(x_train.shape)
     print(x_test.shape)
+    print("exception words : "+str(dependency_load_data.get_exception_number()))
     # 500
     steps_each_check = 500
 
@@ -72,9 +74,12 @@ def train(argv=None):
     train_labels_node = tf.placeholder(tf.float32,shape=(None,NUM_CLASSES))
 
     dropout_keep_prob = tf.placeholder(tf.float32,name="dropout_keep_prob")
+    is_training = tf.placeholder(tf.bool,name="is_training")
 
+    # CNN
     filter_sizes = [2,3,4,5,6]
     filter_numbers = [300,200,150,100,100]
+
     # full connected - softmax layer,
     fc1_weights = tf.Variable(
       tf.truncated_normal([sum(filter_numbers),100],
@@ -102,18 +107,22 @@ def train(argv=None):
         x = tf.split(0,NUM_STEPS, x)
 
         # B-directional LSTM
-        fw_cell = tf.nn.rnn_cell.LSTMCell(num_hidden,forget_bias=1.0,state_is_tuple=True)
-        fw_cell = tf.nn.rnn_cell.DropoutWrapper(fw_cell, output_keep_prob=dropout_keep_prob)
-        bw_cell = tf.nn.rnn_cell.LSTMCell(num_hidden,forget_bias=1.0,state_is_tuple=True)
-        bw_cell = tf.nn.rnn_cell.DropoutWrapper(bw_cell, output_keep_prob=dropout_keep_prob)
+        with tf.variable_scope("fw_cell"):
+            fw_cell = tf.nn.rnn_cell.LSTMCell(num_hidden,forget_bias=1.0,state_is_tuple=True)
+            # fw_cell = tf.nn.rnn_cell.DropoutWrapper(fw_cell, output_keep_prob=dropout_keep_prob)
+            if rnn_layer > 1:
+                fw_cell = tf.nn.rnn_cell.MultiRNNCell([fw_cell] * rnn_layer)
 
-        if rnn_layer > 1:
-            fw_cell = tf.nn.rnn_cell.MultiRNNCell([fw_cell] * rnn_layer)
-            bw_cell = tf.nn.rnn_cell.MultiRNNCell([bw_cell] * rnn_layer)
+        with tf.variable_scope("bw_cell"):
+            bw_cell = tf.nn.rnn_cell.LSTMCell(num_hidden,forget_bias=1.0,state_is_tuple=True)
+            # bw_cell = tf.nn.rnn_cell.DropoutWrapper(bw_cell, output_keep_prob=dropout_keep_prob)
+            if rnn_layer > 1:
+                bw_cell = tf.nn.rnn_cell.MultiRNNCell([bw_cell] * rnn_layer)
 
         # output = [batch_size,num_hidden*2]
         # outputs of Bi-directional LSTM to highway
-        outputs, fw_final_state, bw_final_state = tf.nn.bidirectional_rnn(fw_cell, bw_cell,x, dtype=tf.float32)
+        with tf.variable_scope("rnn_def"):
+            outputs, fw_final_state, bw_final_state = tf.nn.bidirectional_rnn(fw_cell, bw_cell,x, dtype=tf.float32)
 
         # Highway
         # convert to [batch_size,num_steps,num_hidden*2]
@@ -128,13 +137,14 @@ def train(argv=None):
 
         # convert to [batch_size,num_steps,num_hidden*2]
         hw_output = tf.reshape(hw_output, [-1,NUM_STEPS,num_hidden*2])
-
         # expand dim , cnn_input=[batch_size,num_steps,num_hidden*2,1]
         cnn_input=tf.expand_dims(hw_output, -1)
+
         # CNN
         pooled_outputs = []
         for idx, filter_size in enumerate(filter_sizes):
             conv = conv2d(cnn_input,filter_numbers[idx],filter_size,num_hidden*2,name="kernel%d" % idx)
+            # conv = batch_norm_conv2d(cnn_input,filter_numbers[idx], filter_size,idx,num_hidden*2,is_training,stddev=0.1, name="kernel%d" % idx)
             # 1-max pooling,leave a tensor of shape[batch_size,1,1,num_filters]
             pool = tf.nn.max_pool(conv,ksize=[1,max_document_length-filter_size+1,1,1],strides=[1, 1, 1, 1],padding='VALID')
             pooled_outputs.append(tf.squeeze(pool))
@@ -147,10 +157,14 @@ def train(argv=None):
         # add dropout
         cnn_output = tf.nn.dropout(cnn_output,dropout_keep_prob)
         # fc1 layer
-        hidden = tf.matmul(cnn_output, fc1_weights) + fc1_biases
-        # fc2 layer
-        fc_output = tf.matmul(hidden,fc2_weights) + fc2_biases
-        return fc_output
+        hidden = tf.matmul(cnn_output, fc1_weights)
+        # add batch normalization
+        # hidden = official_batch_norm_layer(tf.nn.bias_add(hidden,fc1_biases),100,is_training,False,scope="fc1_batch_norm")
+        fc1_output = tf.sigmoid(tf.nn.bias_add(hidden,fc1_biases))
+        # softmax linear layer , don't apply activation function
+        hidden = tf.matmul(fc1_output,fc2_weights)
+        fc2_output = tf.nn.bias_add(hidden,fc2_biases)
+        return fc2_output
 
     # Training computation
     # [batch_size,num_classes]
@@ -183,6 +197,11 @@ def train(argv=None):
     train_correct_pred = tf.equal(train_predict,train_label)
     train_accuracy = tf.reduce_mean(tf.cast(train_correct_pred, tf.float32))
     tf.scalar_summary('acc', train_accuracy)
+
+    # all variables
+    # for v in tf.all_variables():
+    #    print(v.name)
+
     merged = tf.merge_all_summaries()
 
     def compute_index(y_label,y_predict):
@@ -201,7 +220,7 @@ def train(argv=None):
                                                            f1_score(y_label,y_predict, average='weighted')))
 
     def dev_step(x_batch,y_batch,best_test_loss,sess):
-        feed_dict = {train_data_node: x_batch,train_labels_node: y_batch,dropout_keep_prob:1.0}
+        feed_dict = {train_data_node: x_batch,train_labels_node: y_batch,dropout_keep_prob:1.0,is_training:False}
         # Run the graph and fetch some of the nodes.
         # test dont apply train_op (train_op is update gradient).
         summary,step, losses, lr,acc,y_label,y_predict= sess.run([merged,global_step, loss,learning_rate,train_accuracy,train_label,train_predict]
@@ -251,7 +270,7 @@ def train(argv=None):
             else:
                 if  batch_count % META_FREQUENCY == 99:
                     x_batch, y_batch = zip(*batch)
-                    feed_dict = {train_data_node: x_batch,train_labels_node: y_batch,dropout_keep_prob:0.5}
+                    feed_dict = {train_data_node: x_batch,train_labels_node: y_batch,dropout_keep_prob:0.5,is_training:True}
                     # Run the graph and fetch some of the nodes.
                     # option
                     run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
@@ -266,7 +285,7 @@ def train(argv=None):
                     print("{}: step {}, loss {:g},acc {:g}".format(time_str, step, losses,acc))
                 else:
                     x_batch, y_batch = zip(*batch)
-                    feed_dict = {train_data_node: x_batch,train_labels_node: y_batch,dropout_keep_prob:0.5}
+                    feed_dict = {train_data_node: x_batch,train_labels_node: y_batch,dropout_keep_prob:0.5,is_training:True}
                     # Run the graph and fetch some of the nodes.
                     _, summary, step, losses, acc = sess.run([train_op,merged,global_step, loss,train_accuracy],feed_dict=feed_dict)
                     train_writer.add_summary(summary, step)

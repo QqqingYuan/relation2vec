@@ -49,10 +49,10 @@ def  parse_sent(sentence,entity_e1,pl_e1,entity_e2,pl_e2):
     # print(e1)
     e2 = get_entity_index(words,entity_e2,pl_e2)
     # print(e2)
-    e1 = entity_e1[0]+'-'+str(e1)
-    e2 = entity_e2[0]+'-'+str(e2)
+    e1_item = entity_e1[0]+'-'+str(e1)
+    e2_item = entity_e2[0]+'-'+str(e2)
     graph = nx.Graph(edges)
-    path = nx.shortest_path(graph,source=e1,target=e2)
+    path = nx.shortest_path(graph,source=e1_item,target=e2_item)
     path2 = [item.split('-')[0] for item in path]
     # sort entity_e2
     path3 = []
@@ -62,8 +62,10 @@ def  parse_sent(sentence,entity_e1,pl_e1,entity_e2,pl_e2):
     for word in entity_e2:
         path3.append(word)
 
+    e1 = path3.index(entity_e1[0])
+    e2 = path3.index(entity_e2[0])
     sent = ' '.join(path3)
-    return sent
+    return sent,e1,e2
 
 
 

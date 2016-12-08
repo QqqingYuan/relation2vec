@@ -188,7 +188,12 @@ def train(argv=None):
     # loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(tf.clip_by_value(logits,1e-10,1e10),train_labels_node))
     # pairwise ranking loss
     loss = tf.reduce_mean(1.0 - t_values + n_values)
-
+    """
+    m_target = 0.5
+    m_neg = 0.0
+    r = 5
+    loss = tf.reduce_mean(tf.log(1+tf.exp(r*(m_target-t_values)))+tf.log(1+tf.exp(r*(m_neg+n_values))))
+    """
     regularization = tf.nn.l2_loss(fc1_weights)+tf.nn.l2_loss(fc1_biases)+tf.nn.l2_loss(fc2_weights)\
                      + tf.nn.l2_loss(fc2_biases)
     loss += 0.01 * regularization

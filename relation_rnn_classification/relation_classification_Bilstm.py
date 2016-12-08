@@ -9,12 +9,12 @@ import dependency_load_data
 import data_helpers
 from sklearn.metrics import recall_score,accuracy_score,f1_score
 import argparse
-
+from ops import official_batch_norm_layer
 
 NUM_CLASSES = 10
 EMBEDDING_SIZE = 100
 SEED = 66478
-BATCH_SIZE = 128
+BATCH_SIZE = 64
 NUM_EPOCHS = 200
 EVAL_FREQUENCY = 100
 META_FREQUENCY = 100
@@ -23,6 +23,7 @@ META_FREQUENCY = 100
 max_document_length = 15
 NUM_STEPS = max_document_length
 num_hidden = 256
+# output_projection_size = 200
 rnn_layer = 1
 
 learning_rate_decay = 0.5
@@ -73,13 +74,21 @@ def train(argv=None):
     train_labels_node = tf.placeholder(tf.float32,shape=(None,NUM_CLASSES))
 
     dropout_keep_prob = tf.placeholder(tf.float32,name="dropout_keep_prob")
+    is_training = tf.placeholder(tf.bool,name="is_training")
 
     fc1_weights = tf.Variable(
-        tf.random_normal([2*num_hidden,NUM_CLASSES])
+        tf.random_normal([2*num_hidden,200])
         # tf.truncated_normal([num_hidden,NUM_CLASSES],stddev=0.1,seed=SEED,dtype=tf.float32)
     )
 
-    fc1_biases = tf.Variable(tf.random_normal(shape=[NUM_CLASSES], dtype=tf.float32))
+    fc1_biases = tf.Variable(tf.constant(0.01, shape=[200], dtype=tf.float32))
+
+    fc2_weights = tf.Variable(
+        tf.random_normal([200,NUM_CLASSES])
+        # tf.truncated_normal([num_hidden,NUM_CLASSES],stddev=0.1,seed=SEED,dtype=tf.float32)
+    )
+
+    fc2_biases = tf.Variable(tf.constant(0.01, shape=[NUM_CLASSES], dtype=tf.float32))
 
     # model
     def model(x):
@@ -92,8 +101,12 @@ def train(argv=None):
 
         # B-directional LSTM
         fw_cell = tf.nn.rnn_cell.LSTMCell(num_hidden,forget_bias=1.0,state_is_tuple=True)
+        # add output projection
+        # fw_cell = tf.nn.rnn_cell.OutputProjectionWrapper(fw_cell,output_projection_size)
         fw_cell = tf.nn.rnn_cell.DropoutWrapper(fw_cell, output_keep_prob=dropout_keep_prob)
         bw_cell = tf.nn.rnn_cell.LSTMCell(num_hidden,forget_bias=1.0,state_is_tuple=True)
+        # add output projection
+        # bw_cell = tf.nn.rnn_cell.OutputProjectionWrapper(bw_cell,output_projection_size)
         bw_cell = tf.nn.rnn_cell.DropoutWrapper(bw_cell, output_keep_prob=dropout_keep_prob)
 
         if rnn_layer > 1:
@@ -114,7 +127,13 @@ def train(argv=None):
         for output in outputs:
             dim_max = tf.maximum(dim_max,output)
 
-        merge_output = tf.matmul(dim_max, fc1_weights) + fc1_biases
+        # fc1 layer
+        hidden = tf.matmul(dim_max, fc1_weights) + fc1_biases
+        # add batch normalization
+        # hidden = official_batch_norm_layer(hidden,200,is_training,False,scope="fc1_batch_norm")
+        fc1_output = tf.tanh(hidden)
+        # fc2 layer
+        merge_output = tf.matmul(fc1_output,fc2_weights) + fc2_biases
         # merge_output = [batch_size,num_classes]
         return merge_output
 
@@ -124,7 +143,9 @@ def train(argv=None):
     # add value clip to logits
     loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(tf.clip_by_value(logits,1e-10,1.0),train_labels_node))
     # L2 regularization for the fully connected parameters.
-    regularizers = (tf.nn.l2_loss(fc1_weights) + tf.nn.l2_loss(fc1_biases))
+    regularizers = (tf.nn.l2_loss(fc1_weights) + tf.nn.l2_loss(fc1_biases) + tf.nn.l2_loss(fc2_weights)
+                    + tf.nn.l2_loss(fc2_biases))
+
     loss += 0.05 * regularizers
 
     tf.scalar_summary('loss', loss)
@@ -166,7 +187,7 @@ def train(argv=None):
                                                            f1_score(y_label,y_predict, average='weighted')))
 
     def dev_step(x_batch,y_batch,best_test_loss,sess):
-        feed_dict = {train_data_node: x_batch,train_labels_node: y_batch,dropout_keep_prob:1.0}
+        feed_dict = {train_data_node: x_batch,train_labels_node: y_batch,dropout_keep_prob:1.0,is_training:False}
         # Run the graph and fetch some of the nodes.
         # test dont apply train_op (train_op is update gradient).
         summary,step, losses, lr,acc,y_label,y_predict= sess.run([merged,global_step, loss,learning_rate,train_accuracy,train_label,train_predict]
@@ -216,7 +237,7 @@ def train(argv=None):
             else:
                 if  batch_count % META_FREQUENCY == 99:
                     x_batch, y_batch = zip(*batch)
-                    feed_dict = {train_data_node: x_batch,train_labels_node: y_batch,dropout_keep_prob:0.5}
+                    feed_dict = {train_data_node: x_batch,train_labels_node: y_batch,dropout_keep_prob:0.4,is_training:True}
                     # Run the graph and fetch some of the nodes.
                     # option
                     run_options = tf.RunOptions(trace_level=tf.RunOptions.FULL_TRACE)
@@ -231,7 +252,7 @@ def train(argv=None):
                     print("{}: step {}, loss {:g},acc {:g}".format(time_str, step, losses,acc))
                 else:
                     x_batch, y_batch = zip(*batch)
-                    feed_dict = {train_data_node: x_batch,train_labels_node: y_batch,dropout_keep_prob:0.5}
+                    feed_dict = {train_data_node: x_batch,train_labels_node: y_batch,dropout_keep_prob:0.4,is_training:True}
                     # Run the graph and fetch some of the nodes.
                     _, summary, step, losses, acc = sess.run([train_op,merged,global_step, loss,train_accuracy],feed_dict=feed_dict)
                     train_writer.add_summary(summary, step)
